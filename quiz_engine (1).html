@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QuizMaster Pro – Automated Quiz Engine</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg: #0a0c14;
+    --surface: #12151f;
+    --card: #181c2a;
+    --border: #252a3d;
+    --gold: #f5c842;
+    --gold2: #e8a020;
+    --accent: #5b8dee;
+    --green: #3ecf8e;
+    --red: #f06292;
+    --text: #e8ecf5;
+    --muted: #8892aa;
+    --radius: 16px;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ─── GRID BACKGROUND ─── */
+  body::before {
+    content:'';
+    position:fixed; inset:0;
+    background-image: 
+      linear-gradient(rgba(91,141,238,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(91,141,238,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events:none; z-index:0;
+  }
+
+  .app { position:relative; z-index:1; }
+
+  /* ─── HEADER ─── */
+  header {
+    text-align:center;
+    padding: 48px 24px 32px;
+    background: linear-gradient(180deg, rgba(91,141,238,0.08) 0%, transparent 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .logo-badge {
+    display:inline-flex; align-items:center; gap:10px;
+    background: rgba(245,200,66,0.12);
+    border: 1px solid rgba(245,200,66,0.3);
+    border-radius:999px; padding: 6px 18px;
+    font-size:13px; color:var(--gold); font-weight:600;
+    letter-spacing:1px; text-transform:uppercase;
+    margin-bottom:20px;
+  }
+  .logo-badge span { font-size:16px; }
+  h1 {
+    font-family:'Playfair Display', serif;
+    font-size: clamp(2rem,5vw,3.5rem);
+    font-weight:900;
+    background: linear-gradient(135deg, #fff 30%, var(--gold));
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    line-height:1.1; margin-bottom:12px;
+  }
+  header p {
+    color:var(--muted); font-size:16px; max-width:480px; margin:0 auto;
+  }
+
+  /* ─── SCREENS ─── */
+  .screen { display:none; max-width:760px; margin:0 auto; padding:40px 20px 60px; }
+  .screen.active { display:block; }
+
+  /* ─── WELCOME SCREEN ─── */
+  .topic-grid {
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+    gap:14px; margin:32px 0;
+  }
+  .topic-card {
+    background:var(--card);
+    border:2px solid var(--border);
+    border-radius:var(--radius);
+    padding:22px 18px;
+    cursor:pointer;
+    transition: all 0.2s;
+    text-align:center;
+  }
+  .topic-card:hover { border-color:var(--accent); background:rgba(91,141,238,0.08); transform:translateY(-2px); }
+  .topic-card.selected { border-color:var(--gold); background:rgba(245,200,66,0.08); }
+  .topic-card .icon { font-size:36px; margin-bottom:10px; }
+  .topic-card .label { font-weight:600; font-size:15px; }
+  .topic-card .count { color:var(--muted); font-size:13px; margin-top:4px; }
+
+  .config-row {
+    display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:24px 0;
+  }
+  .config-box {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:var(--radius); padding:18px;
+  }
+  .config-box label { font-size:13px; color:var(--muted); display:block; margin-bottom:8px; font-weight:500; }
+  .config-box select, .config-box input {
+    width:100%; background:var(--surface); border:1px solid var(--border);
+    color:var(--text); padding:10px 14px; border-radius:10px;
+    font-family:inherit; font-size:15px;
+  }
+  .config-box input { font-size:15px; }
+  input[type="text"]:focus, select:focus { outline:2px solid var(--accent); outline-offset:2px; }
+
+  /* ─── BUTTONS ─── */
+  .btn {
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:14px 32px; border-radius:12px; border:none;
+    font-family:inherit; font-size:16px; font-weight:600;
+    cursor:pointer; transition:all 0.2s; text-decoration:none;
+  }
+  .btn-gold {
+    background: linear-gradient(135deg, var(--gold), var(--gold2));
+    color:#1a1200;
+  }
+  .btn-gold:hover { transform:translateY(-1px); box-shadow:0 8px 28px rgba(245,200,66,0.35); }
+  .btn-outline {
+    background:transparent; border:2px solid var(--border);
+    color:var(--text);
+  }
+  .btn-outline:hover { border-color:var(--accent); color:var(--accent); }
+  .btn-green {
+    background:linear-gradient(135deg,#3ecf8e,#1db36b);
+    color:#001a0e;
+  }
+  .btn-green:hover { transform:translateY(-1px); box-shadow:0 8px 28px rgba(62,207,142,0.3); }
+  .btn-full { width:100%; }
+
+  /* ─── QUIZ SCREEN ─── */
+  .quiz-header {
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:24px; flex-wrap:wrap; gap:12px;
+  }
+  .quiz-meta { font-size:14px; color:var(--muted); }
+  .quiz-meta strong { color:var(--text); }
+
+  .timer-badge {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:999px; padding:8px 20px;
+    font-size:18px; font-weight:700;
+    font-family:'Playfair Display',serif;
+    color:var(--gold); letter-spacing:1px;
+    transition: color 0.3s;
+  }
+  .timer-badge.urgent { color:var(--red); animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+
+  /* progress bar */
+  .progress-bar {
+    height:6px; background:var(--border); border-radius:99px;
+    margin-bottom:28px; overflow:hidden;
+  }
+  .progress-fill {
+    height:100%; border-radius:99px;
+    background:linear-gradient(90deg, var(--accent), var(--gold));
+    transition:width 0.4s ease;
+  }
+
+  .question-card {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:var(--radius); padding:32px;
+    margin-bottom:20px;
+  }
+  .q-num { font-size:13px; color:var(--muted); font-weight:500; margin-bottom:10px; }
+  .q-text { font-size:20px; font-weight:600; line-height:1.5; }
+
+  .options-list { display:flex; flex-direction:column; gap:12px; margin-top:28px; }
+  .option-btn {
+    background:var(--surface); border:2px solid var(--border);
+    border-radius:12px; padding:16px 20px;
+    text-align:left; cursor:pointer;
+    font-family:inherit; font-size:16px; color:var(--text);
+    transition:all 0.18s; display:flex; align-items:center; gap:14px;
+  }
+  .option-btn:hover:not(:disabled) { border-color:var(--accent); background:rgba(91,141,238,0.08); }
+  .option-btn.correct { border-color:var(--green); background:rgba(62,207,142,0.1); color:var(--green); }
+  .option-btn.wrong { border-color:var(--red); background:rgba(240,98,146,0.1); color:var(--red); }
+  .option-btn.reveal { border-color:var(--green); background:rgba(62,207,142,0.06); }
+  .option-btn:disabled { cursor:default; }
+  .opt-letter {
+    width:30px; height:30px; border-radius:8px;
+    background:var(--border); display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:13px; flex-shrink:0;
+    transition:background 0.2s;
+  }
+  .option-btn.correct .opt-letter { background:var(--green); color:#001a0e; }
+  .option-btn.wrong .opt-letter { background:var(--red); color:#fff; }
+
+  .feedback-bar {
+    border-radius:12px; padding:14px 20px;
+    margin-top:16px; font-weight:500; font-size:15px;
+    display:none; align-items:center; gap:10px;
+  }
+  .feedback-bar.show { display:flex; }
+  .feedback-bar.correct { background:rgba(62,207,142,0.12); border:1px solid rgba(62,207,142,0.3); color:var(--green); }
+  .feedback-bar.wrong { background:rgba(240,98,146,0.1); border:1px solid rgba(240,98,146,0.3); color:var(--red); }
+
+  .nav-row { display:flex; justify-content:flex-end; margin-top:20px; }
+
+  /* ─── RESULT SCREEN ─── */
+  .result-hero {
+    text-align:center; padding:40px 20px;
+    background:var(--card); border:1px solid var(--border);
+    border-radius:var(--radius); margin-bottom:28px;
+    position:relative; overflow:hidden;
+  }
+  .result-hero::before {
+    content:'';position:absolute;inset:0;
+    background:radial-gradient(ellipse at 50% 0%, rgba(245,200,66,0.1) 0%, transparent 70%);
+    pointer-events:none;
+  }
+  .score-ring {
+    width:140px; height:140px; border-radius:50%;
+    border:6px solid var(--border); margin:0 auto 24px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    position:relative;
+  }
+  .score-pct {
+    font-family:'Playfair Display',serif;
+    font-size:40px; font-weight:900; line-height:1;
+  }
+  .score-label { font-size:13px; color:var(--muted); margin-top:4px; }
+  .grade-badge {
+    display:inline-block; padding:6px 20px; border-radius:999px;
+    font-weight:700; font-size:14px; margin-bottom:16px;
+  }
+  .grade-A { background:rgba(62,207,142,0.15); color:var(--green); border:1px solid rgba(62,207,142,0.4); }
+  .grade-B { background:rgba(91,141,238,0.15); color:var(--accent); border:1px solid rgba(91,141,238,0.4); }
+  .grade-C { background:rgba(245,200,66,0.15); color:var(--gold); border:1px solid rgba(245,200,66,0.4); }
+  .grade-F { background:rgba(240,98,146,0.12); color:var(--red); border:1px solid rgba(240,98,146,0.4); }
+
+  .stats-row { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:28px; }
+  .stat-box {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:var(--radius); padding:20px; text-align:center;
+  }
+  .stat-val { font-size:28px; font-weight:700; font-family:'Playfair Display',serif; }
+  .stat-lbl { font-size:13px; color:var(--muted); margin-top:4px; }
+
+  .review-list { display:flex; flex-direction:column; gap:14px; margin-bottom:28px; }
+  .review-item {
+    background:var(--card); border-left:4px solid var(--border);
+    border-radius:0 12px 12px 0; padding:18px 20px;
+  }
+  .review-item.correct-r { border-left-color:var(--green); }
+  .review-item.wrong-r { border-left-color:var(--red); }
+  .review-q { font-weight:600; font-size:15px; margin-bottom:8px; }
+  .review-answer { font-size:14px; color:var(--muted); }
+  .review-answer em { font-style:normal; font-weight:600; }
+  .review-answer .ok { color:var(--green); }
+  .review-answer .bad { color:var(--red); }
+
+  .action-row { display:flex; flex-wrap:wrap; gap:12px; justify-content:center; }
+
+  /* ─── NAME INPUT SCREEN ─── */
+  .name-card {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:var(--radius); padding:40px 32px; text-align:center;
+  }
+  .name-card h2 { font-family:'Playfair Display',serif; font-size:2rem; margin-bottom:8px; }
+  .name-card p { color:var(--muted); margin-bottom:28px; }
+  .name-input {
+    width:100%; background:var(--surface); border:2px solid var(--border);
+    color:var(--text); padding:14px 18px; border-radius:12px;
+    font-family:inherit; font-size:18px; text-align:center;
+    margin-bottom:20px; transition:border-color 0.2s;
+  }
+  .name-input:focus { outline:none; border-color:var(--gold); }
+
+  /* ─── SECTION HEADING ─── */
+  .section-title {
+    font-family:'Playfair Display',serif; font-size:1.4rem;
+    margin-bottom:20px; padding-bottom:12px;
+    border-bottom:1px solid var(--border);
+  }
+
+  /* ─── TOAST ─── */
+  #toast {
+    position:fixed; bottom:28px; left:50%; transform:translateX(-50%);
+    background:#fff; color:#111; padding:12px 24px; border-radius:999px;
+    font-weight:600; font-size:14px; box-shadow:0 8px 32px rgba(0,0,0,0.4);
+    z-index:1000; opacity:0; transition:opacity 0.3s;
+    pointer-events:none;
+  }
+  #toast.show { opacity:1; }
+
+  @media(max-width:520px){
+    .config-row { grid-template-columns:1fr; }
+    .stats-row { grid-template-columns:1fr 1fr; }
+    .question-card { padding:20px; }
+    .q-text { font-size:17px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- HEADER -->
+<header>
+  <div class="logo-badge"><span>🏆</span> QuizMaster Pro</div>
+  <h1>Automated Quiz Engine</h1>
+  <p>Test your knowledge, earn a personalized PDF certificate</p>
+</header>
+
+<!-- ══════════════ SCREEN 1: WELCOME ══════════════ -->
+<div id="screen-welcome" class="screen active">
+  <h2 class="section-title" style="margin-top:8px">Choose a Topic</h2>
+  <div class="topic-grid" id="topicGrid"></div>
+
+  <div class="config-row">
+    <div class="config-box">
+      <label>Number of Questions</label>
+      <select id="numQ">
+        <option value="5">5 Questions</option>
+        <option value="10" selected>10 Questions</option>
+        <option value="15">15 Questions</option>
+        <option value="20">20 Questions</option>
+      </select>
+    </div>
+    <div class="config-box">
+      <label>Time per Question</label>
+      <select id="timePerQ">
+        <option value="0">No Limit</option>
+        <option value="20">20 seconds</option>
+        <option value="30" selected>30 seconds</option>
+        <option value="60">60 seconds</option>
+      </select>
+    </div>
+  </div>
+
+  <button class="btn btn-gold btn-full" onclick="startQuiz()">
+    🚀 Start Quiz
+  </button>
+</div>
+
+<!-- ══════════════ SCREEN 2: NAME ENTRY ══════════════ -->
+<div id="screen-name" class="screen">
+  <div class="name-card">
+    <div style="font-size:56px;margin-bottom:16px">📝</div>
+    <h2>Enter Your Name</h2>
+    <p>Your name will appear on the certificate</p>
+    <input class="name-input" id="userName" type="text" placeholder="Full Name" maxlength="60" />
+    <button class="btn btn-gold btn-full" onclick="beginQuiz()">Begin Quiz →</button>
+  </div>
+</div>
+
+<!-- ══════════════ SCREEN 3: QUIZ ══════════════ -->
+<div id="screen-quiz" class="screen">
+  <div class="quiz-header">
+    <div class="quiz-meta">
+      Topic: <strong id="qTopic"></strong> &nbsp;|&nbsp;
+      Question <strong id="qNum"></strong> of <strong id="qTotal"></strong>
+    </div>
+    <div class="timer-badge" id="timerBadge" style="display:none">⏱ <span id="timerVal">30</span>s</div>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+
+  <div class="question-card">
+    <div class="q-num" id="qNumLabel"></div>
+    <div class="q-text" id="qText"></div>
+    <div class="options-list" id="optionsList"></div>
+    <div class="feedback-bar" id="feedbackBar"></div>
+  </div>
+
+  <div class="nav-row">
+    <button class="btn btn-gold" id="nextBtn" onclick="nextQuestion()" style="display:none">
+      Next →
+    </button>
+  </div>
+</div>
+
+<!-- ══════════════ SCREEN 4: RESULT ══════════════ -->
+<div id="screen-result" class="screen">
+  <div class="result-hero">
+    <div class="score-ring" id="scoreRing">
+      <div class="score-pct" id="scorePct"></div>
+      <div class="score-label">Score</div>
+    </div>
+    <div class="grade-badge" id="gradeBadge"></div>
+    <h2 id="resultMsg" style="font-family:'Playfair Display',serif; font-size:1.6rem; margin-bottom:6px;"></h2>
+    <p id="resultSub" style="color:var(--muted)"></p>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-box"><div class="stat-val" id="sCorrect" style="color:var(--green)"></div><div class="stat-lbl">Correct</div></div>
+    <div class="stat-box"><div class="stat-val" id="sWrong" style="color:var(--red)"></div><div class="stat-lbl">Wrong</div></div>
+    <div class="stat-box"><div class="stat-val" id="sTime"></div><div class="stat-lbl">Time Taken</div></div>
+  </div>
+
+  <h3 class="section-title">Review Answers</h3>
+  <div class="review-list" id="reviewList"></div>
+
+  <div class="action-row">
+    <button class="btn btn-green" onclick="downloadCertificate()">📄 Download Certificate</button>
+    <button class="btn btn-outline" onclick="retakeQuiz()">🔁 Retake Quiz</button>
+    <button class="btn btn-outline" onclick="goHome()">🏠 Home</button>
+  </div>
+</div>
+
+</div><!-- .app -->
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════
+//  QUESTION BANK
+// ══════════════════════════════════════════════
+const QUESTION_BANK = {
+  "JavaScript": [
+    { q:"Which keyword declares a block-scoped variable in JavaScript?", opts:["var","let","def","dim"], ans:1 },
+    { q:"What does '===' check in JavaScript?", opts:["Value only","Type only","Value and type","Assignment"], ans:2 },
+    { q:"Which method adds an element to the end of an array?", opts:["unshift","push","append","add"], ans:1 },
+    { q:"What is the output of typeof null?", opts:["null","undefined","object","boolean"], ans:2 },
+    { q:"Which of these is NOT a JavaScript data type?", opts:["Symbol","BigInt","Float","undefined"], ans:2 },
+    { q:"What does 'async/await' help with?", opts:["Synchronous code","Asynchronous promises","Type safety","Event loops"], ans:1 },
+    { q:"What is a closure in JavaScript?", opts:["A loop statement","A function that remembers its scope","A closed tag","A dead code block"], ans:1 },
+    { q:"Which method removes the last element of an array?", opts:["splice","pop","shift","remove"], ans:1 },
+    { q:"What does 'NaN' stand for?", opts:["Not a Node","No and No","Not a Number","Null and None"], ans:2 },
+    { q:"Which event fires when the DOM is fully loaded?", opts:["onready","DOMContentLoaded","pageload","domloaded"], ans:1 },
+    { q:"How do you convert a string to an integer in JS?", opts:["int()","Number.parse()","parseInt()","toInt()"], ans:2 },
+    { q:"What does the spread operator '...' do?", opts:["Spreads array/object elements","Creates a loop","Compares values","Declares variables"], ans:0 },
+    { q:"What is a Promise in JavaScript?", opts:["A contract object","An async operation result","A variable type","A class method"], ans:1 },
+    { q:"Which built-in method joins array items into a string?", opts:["concat","merge","join","toString"], ans:2 },
+    { q:"What does 'use strict' do?", opts:["Enables strict mode for safer code","Disables ES6","Forces typing","Compiles JS"], ans:0 },
+    { q:"What is the purpose of JSON.parse()?", opts:["Convert object to string","Convert JSON string to object","Validate JSON","Format JSON"], ans:1 },
+    { q:"Which loop is guaranteed to execute at least once?", opts:["for","while","do...while","forEach"], ans:2 },
+    { q:"What is event bubbling?", opts:["Creating events","Events propagating up the DOM","Stopping events","Async events"], ans:1 },
+    { q:"What does Array.map() return?", opts:["A new array","A boolean","The same array","undefined"], ans:0 },
+    { q:"What is the difference between null and undefined?", opts:["No difference","null is assigned, undefined is uninitialized","undefined is assigned, null is not","Both are objects"], ans:1 },
+  ],
+  "Python": [
+    { q:"Which keyword is used to define a function in Python?", opts:["function","fun","def","func"], ans:2 },
+    { q:"What is the output of type([])?", opts:["array","list","tuple","dict"], ans:1 },
+    { q:"Which operator is used for floor division in Python?", opts:["/","//","%","**"], ans:1 },
+    { q:"How do you start a comment in Python?", opts:["//","/*","#","--"], ans:2 },
+    { q:"What does 'len()' return?", opts:["Last element","Length of an object","Memory size","Data type"], ans:1 },
+    { q:"Which is mutable in Python?", opts:["Tuple","String","List","Integer"], ans:2 },
+    { q:"What is a Python decorator?", opts:["A class method","A function that wraps another function","A loop type","An import statement"], ans:1 },
+    { q:"What does 'self' refer to in a class?", opts:["The class itself","The current instance","A static method","A global variable"], ans:1 },
+    { q:"Which statement is used to handle exceptions?", opts:["catch","try/except","try/catch","error"], ans:1 },
+    { q:"What is a generator in Python?", opts:["A random number tool","A function using yield","A data structure","A module"], ans:1 },
+    { q:"How do you open a file in Python?", opts:["File.open()","open()","read()","file()"], ans:1 },
+    { q:"What is 'pip' used for?", opts:["Running Python","Managing packages","Writing tests","Compiling code"], ans:1 },
+    { q:"Which data structure uses key-value pairs?", opts:["List","Tuple","Dictionary","Set"], ans:2 },
+    { q:"What does 'pass' do in Python?", opts:["Ends function","Skips to next line","Does nothing (placeholder)","Raises error"], ans:2 },
+    { q:"What is the correct way to create a virtual environment?", opts:["python venv","python -m venv","virtualenv -m","py venv"], ans:1 },
+    { q:"What is list comprehension?", opts:["Copying a list","Creating a list using a compact expression","Sorting a list","Merging lists"], ans:1 },
+    { q:"Which method removes and returns the last item in a list?", opts:["remove()","pop()","delete()","discard()"], ans:1 },
+    { q:"What does 'lambda' create?", opts:["A class","An anonymous function","A module","A loop"], ans:1 },
+    { q:"What is the purpose of __init__?", opts:["Destroys the object","Initializes a new object","Imports modules","Defines static methods"], ans:1 },
+    { q:"What does 'zip()' do in Python?", opts:["Compresses files","Combines iterables element-wise","Sorts lists","Filters elements"], ans:1 },
+  ],
+  "Web Dev": [
+    { q:"What does HTML stand for?", opts:["HyperText Markup Language","HyperText Modeling Language","Hyper Transfer Markup Language","High Transfer Markup Layer"], ans:0 },
+    { q:"Which CSS property controls text size?", opts:["text-size","font-weight","font-size","text-scale"], ans:2 },
+    { q:"What does 'div' represent in HTML?", opts:["Divider line","Division container","Dropdown","Direct value"], ans:1 },
+    { q:"Which HTTP method is used to send data to a server?", opts:["GET","PUT","POST","FETCH"], ans:2 },
+    { q:"What is the CSS box model?", opts:["Color model","Layout model with content, padding, border, margin","Font sizing model","Grid system"], ans:1 },
+    { q:"What is responsive design?", opts:["Fast loading pages","Design that adapts to screen sizes","Dark mode support","Animated UI"], ans:1 },
+    { q:"What does 'alt' attribute do in <img>?", opts:["Sets the image URL","Describes the image for accessibility","Sets image size","Adds a tooltip"], ans:1 },
+    { q:"What is Flexbox used for?", opts:["Database queries","1D layout system in CSS","Animation effects","Form validation"], ans:1 },
+    { q:"What does API stand for?", opts:["Automated Program Interface","Application Programming Interface","Applied Protocol Integration","Asynchronous Page Interaction"], ans:1 },
+    { q:"What is the purpose of <meta charset='UTF-8'>?", opts:["Defines page style","Specifies character encoding","Adds metadata for SEO","Links external files"], ans:1 },
+    { q:"What is CSS specificity?", opts:["Loading speed","Rule priority calculation","Color accuracy","Animation timing"], ans:1 },
+    { q:"What does 'localhost' refer to?", opts:["An online server","Your local machine","A cloud service","A hosting provider"], ans:1 },
+    { q:"What is a semantic HTML element?", opts:["An element with meaning/purpose","An inline element","A non-visible element","A form element"], ans:0 },
+    { q:"What is CORS?", opts:["A CSS feature","A security mechanism for cross-origin requests","A compression tool","A caching method"], ans:1 },
+    { q:"What does 'z-index' control in CSS?", opts:["Zoom level","Stacking order of elements","Element size","Animation speed"], ans:1 },
+    { q:"Which tag creates a hyperlink?", opts:["<link>","<href>","<a>","<url>"], ans:2 },
+    { q:"What is localStorage in browsers?", opts:["A server database","Client-side key/value storage","A cookie type","Session memory"], ans:1 },
+    { q:"What is the purpose of a CDN?", opts:["Run JavaScript","Deliver content faster from edge servers","Manage databases","Style HTML"], ans:1 },
+    { q:"Which CSS unit is relative to the root element font size?", opts:["em","px","rem","vh"], ans:2 },
+    { q:"What does DOM stand for?", opts:["Data Object Module","Document Object Model","Design Object Model","Domain Object Module"], ans:1 },
+  ],
+  "General Knowledge": [
+    { q:"What is the capital of France?", opts:["Berlin","London","Paris","Madrid"], ans:2 },
+    { q:"How many continents are there on Earth?", opts:["5","6","7","8"], ans:2 },
+    { q:"What is the chemical symbol for water?", opts:["WA","HO","H2O","W2O"], ans:2 },
+    { q:"Who wrote the play 'Romeo and Juliet'?", opts:["Charles Dickens","William Shakespeare","Jane Austen","Mark Twain"], ans:1 },
+    { q:"What is the largest planet in our solar system?", opts:["Saturn","Neptune","Earth","Jupiter"], ans:3 },
+    { q:"How many sides does a hexagon have?", opts:["5","6","7","8"], ans:1 },
+    { q:"What year did World War II end?", opts:["1940","1943","1945","1948"], ans:2 },
+    { q:"What is the speed of light (approx)?", opts:["300,000 km/s","150,000 km/s","500,000 km/s","100,000 km/s"], ans:0 },
+    { q:"Which element has the atomic number 1?", opts:["Helium","Oxygen","Carbon","Hydrogen"], ans:3 },
+    { q:"What is the longest river in the world?", opts:["Amazon","Yangtze","Nile","Mississippi"], ans:2 },
+    { q:"Who painted the Mona Lisa?", opts:["Michelangelo","Leonardo da Vinci","Raphael","Botticelli"], ans:1 },
+    { q:"What is the tallest mountain in the world?", opts:["K2","Kangchenjunga","Mount Everest","Lhotse"], ans:2 },
+    { q:"How many bones are in the adult human body?", opts:["196","206","216","226"], ans:1 },
+    { q:"What is the smallest country in the world?", opts:["Monaco","Nauru","San Marino","Vatican City"], ans:3 },
+    { q:"In which year did the first moon landing occur?", opts:["1965","1967","1969","1971"], ans:2 },
+    { q:"What is the powerhouse of the cell?", opts:["Nucleus","Ribosome","Mitochondria","Golgi apparatus"], ans:2 },
+    { q:"Which ocean is the largest?", opts:["Atlantic","Indian","Arctic","Pacific"], ans:3 },
+    { q:"What does DNA stand for?", opts:["Deoxyribonucleic Acid","Deoxyribose Nucleic Acid","Directed Nucleic Acid","Dynamic Nucleic Assembly"], ans:0 },
+    { q:"What is the hardest natural substance?", opts:["Gold","Iron","Diamond","Quartz"], ans:2 },
+    { q:"Which planet is known as the Red Planet?", opts:["Venus","Mars","Jupiter","Saturn"], ans:1 },
+  ],
+  "Data Science": [
+    { q:"What does ML stand for in data science?", opts:["Model Logic","Machine Learning","Multivariable Looping","Module Library"], ans:1 },
+    { q:"What is overfitting in machine learning?", opts:["Model too simple","Model performs well only on training data","Model never trains","Model uses too little data"], ans:1 },
+    { q:"What is a neural network?", opts:["A physical brain","A computation model inspired by neurons","A database system","A type of algorithm"], ans:1 },
+    { q:"What does 'pandas' refer to in Python data science?", opts:["An animal","A data manipulation library","A plotting library","A machine learning framework"], ans:1 },
+    { q:"What is a confusion matrix used for?", opts:["Database design","Classification model evaluation","Data cleaning","Regression analysis"], ans:1 },
+    { q:"What is gradient descent?", opts:["A ski term","An optimization algorithm","A type of loss function","A data format"], ans:1 },
+    { q:"What does 'train/test split' mean?", opts:["Splitting datasets for evaluation","Cleaning data","Normalizing features","Merging datasets"], ans:0 },
+    { q:"What is a feature in machine learning?", opts:["A model type","An input variable","An output class","A training loop"], ans:1 },
+    { q:"What is deep learning?", opts:["Learning from deep web","Neural networks with many layers","Manual data labeling","Statistical analysis"], ans:1 },
+    { q:"What is the purpose of normalization?", opts:["Scale data to a standard range","Remove missing values","Add new features","Visualize data"], ans:0 },
+    { q:"What is k-means clustering?", opts:["A classification algorithm","An unsupervised clustering algorithm","A regression technique","A neural network type"], ans:1 },
+    { q:"What is the role of a loss function?", opts:["Measure model error","Add data layers","Initialize weights","Split datasets"], ans:0 },
+    { q:"What is 'epoch' in neural network training?", opts:["A unit of accuracy","One full pass through training data","A model architecture","A weight parameter"], ans:1 },
+    { q:"What is natural language processing?", opts:["Processing natural images","AI understanding of human language","Hardware optimization","Speed processing"], ans:1 },
+    { q:"What does 'regression' predict?", opts:["Categories","Continuous numerical values","Clusters","Sequences"], ans:1 },
+    { q:"What is the purpose of dropout in neural networks?", opts:["Speed training","Prevent overfitting by randomly deactivating neurons","Increase model size","Add more layers"], ans:1 },
+    { q:"What is a ROC curve?", opts:["A regression curve","Receiver Operating Characteristic for classifier evaluation","A data visualization","A clustering metric"], ans:1 },
+    { q:"What is cross-validation?", opts:["Validating multiple models","Technique to evaluate model on different data subsets","A loss function","A regularization method"], ans:1 },
+    { q:"What is a hyperparameter?", opts:["A very large parameter","Configuration set before training","A training output","An activation function"], ans:1 },
+    { q:"What is bias in machine learning?", opts:["Error from wrong assumptions","Sample size","Learning rate","Accuracy metric"], ans:0 },
+  ],
+  "Cybersecurity": [
+    { q:"What does SSL/TLS provide?", opts:["Fast loading","Encrypted communication","Data compression","Error logging"], ans:1 },
+    { q:"What is phishing?", opts:["A fishing game","Deceptive emails tricking users","Malware download","Network scanning"], ans:1 },
+    { q:"What is a firewall?", opts:["Physical wall","Network security barrier filtering traffic","Password manager","VPN service"], ans:1 },
+    { q:"What does VPN stand for?", opts:["Virtual Public Network","Verified Private Node","Virtual Private Network","Visible Protocol Node"], ans:2 },
+    { q:"What is SQL injection?", opts:["A programming method","Attack inserting malicious SQL code","A database tool","A query optimization"], ans:1 },
+    { q:"What is two-factor authentication (2FA)?", opts:["Two passwords","Security using two verification methods","Double encryption","Dual firewall"], ans:1 },
+    { q:"What is ransomware?", opts:["Anti-virus tool","Malware that encrypts files and demands payment","A network scanner","A phishing email"], ans:1 },
+    { q:"What is the principle of least privilege?", opts:["Giving all access","Giving minimum access necessary","Disabling user access","Admin-only access"], ans:1 },
+    { q:"What is a zero-day vulnerability?", opts:["An old bug","Unknown vulnerability with no patch yet","A patched flaw","A firewall rule"], ans:1 },
+    { q:"What does HTTPS use to secure data?", opts:["FTP","TLS/SSL encryption","VPN tunnels","Password hashing"], ans:1 },
+    { q:"What is social engineering?", opts:["Building social apps","Manipulating people to reveal sensitive information","Network design","Coding practice"], ans:1 },
+    { q:"What is a DDoS attack?", opts:["Data deletion","Overwhelming a server with traffic from multiple sources","Database corruption","DNS hijacking"], ans:1 },
+    { q:"What is encryption?", opts:["Deleting data","Converting data to unreadable format","Compressing files","Copying data"], ans:1 },
+    { q:"What is a honeypot in cybersecurity?", opts:["A malware type","A decoy system to detect attackers","A password vault","A firewall rule"], ans:1 },
+    { q:"What is multifactor authentication (MFA)?", opts:["Multiple passwords","Using 2+ verification factors","Biometric only","Email verification"], ans:1 },
+    { q:"What does CSRF stand for?", opts:["Cross-Site Resource Failure","Cross-Site Request Forgery","Client-Server Request Form","Content Script Request Filter"], ans:1 },
+    { q:"What is a brute force attack?", opts:["Physical server damage","Trying all possible passwords systematically","Phishing attempt","Virus injection"], ans:1 },
+    { q:"What is endpoint security?", opts:["Protecting server endpoints","Securing devices like laptops and phones","Network firewall","Email filtering"], ans:1 },
+    { q:"What is public key cryptography?", opts:["Using one shared key","Using a public and private key pair","Password hashing","VPN tunneling"], ans:1 },
+    { q:"What is penetration testing?", opts:["Testing server load","Authorized simulated cyberattack to find vulnerabilities","Encrypting data","Patching software"], ans:1 },
+  ],
+};
+
+const TOPICS = [
+  { key:"JavaScript", icon:"⚡", desc:"ES6+, Closures, Async" },
+  { key:"Python",     icon:"🐍", desc:"OOP, Libraries, Syntax" },
+  { key:"Web Dev",    icon:"🌐", desc:"HTML, CSS, HTTP, APIs" },
+  { key:"General Knowledge", icon:"🌍", desc:"Science, History, Geography" },
+  { key:"Data Science", icon:"📊", desc:"ML, Pandas, Neural Nets" },
+  { key:"Cybersecurity", icon:"🔐", desc:"Security Concepts & Attacks" },
+];
+
+// ══════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════
+let state = {
+  topic:"", questions:[], currentQ:0, answers:[],
+  numQ:10, timePerQ:30, name:"",
+  startTime:0, elapsed:0,
+  timer:null, timeLeft:0,
+};
+
+// ══════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════
+function init() {
+  const grid = document.getElementById('topicGrid');
+  TOPICS.forEach(t => {
+    const div = document.createElement('div');
+    div.className = 'topic-card';
+    div.innerHTML = `<div class="icon">${t.icon}</div><div class="label">${t.key}</div><div class="count">${t.desc}</div>`;
+    div.onclick = () => selectTopic(t.key, div);
+    grid.appendChild(div);
+  });
+}
+
+function selectTopic(key, el) {
+  document.querySelectorAll('.topic-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  state.topic = key;
+}
+
+function startQuiz() {
+  if (!state.topic) { showToast('Please select a topic first!'); return; }
+  state.numQ = parseInt(document.getElementById('numQ').value);
+  state.timePerQ = parseInt(document.getElementById('timePerQ').value);
+  showScreen('screen-name');
+  document.getElementById('userName').focus();
+}
+
+function beginQuiz() {
+  const name = document.getElementById('userName').value.trim();
+  if (!name) { showToast('Please enter your name!'); return; }
+  state.name = name;
+
+  // Shuffle and pick questions
+  const pool = [...QUESTION_BANK[state.topic]];
+  shuffle(pool);
+  state.questions = pool.slice(0, state.numQ);
+  state.answers = [];
+  state.currentQ = 0;
+  state.startTime = Date.now();
+
+  showScreen('screen-quiz');
+  document.getElementById('qTopic').textContent = state.topic;
+  document.getElementById('qTotal').textContent = state.numQ;
+  renderQuestion();
+}
+
+// ══════════════════════════════════════════════
+//  QUIZ LOGIC
+// ══════════════════════════════════════════════
+function renderQuestion() {
+  const idx = state.currentQ;
+  const q = state.questions[idx];
+
+  document.getElementById('qNum').textContent = idx + 1;
+  document.getElementById('qNumLabel').textContent = `Question ${idx + 1} of ${state.numQ}`;
+  document.getElementById('qText').textContent = q.q;
+  document.getElementById('progressFill').style.width = ((idx / state.numQ) * 100) + '%';
+
+  const list = document.getElementById('optionsList');
+  list.innerHTML = '';
+  const labels = ['A','B','C','D'];
+  q.opts.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'option-btn';
+    btn.innerHTML = `<span class="opt-letter">${labels[i]}</span>${opt}`;
+    btn.onclick = () => selectAnswer(i, btn);
+    list.appendChild(btn);
+  });
+
+  // feedback
+  const fb = document.getElementById('feedbackBar');
+  fb.className = 'feedback-bar';
+  fb.textContent = '';
+
+  // next btn
+  document.getElementById('nextBtn').style.display = 'none';
+
+  // timer
+  clearTimer();
+  if (state.timePerQ > 0) {
+    const badge = document.getElementById('timerBadge');
+    badge.style.display = 'block';
+    badge.classList.remove('urgent');
+    state.timeLeft = state.timePerQ;
+    document.getElementById('timerVal').textContent = state.timeLeft;
+    state.timer = setInterval(tickTimer, 1000);
+  } else {
+    document.getElementById('timerBadge').style.display = 'none';
+  }
+}
+
+function tickTimer() {
+  state.timeLeft--;
+  document.getElementById('timerVal').textContent = state.timeLeft;
+  const badge = document.getElementById('timerBadge');
+  if (state.timeLeft <= 10) badge.classList.add('urgent');
+  if (state.timeLeft <= 0) {
+    clearTimer();
+    autoSkip();
+  }
+}
+
+function autoSkip() {
+  // record no answer
+  state.answers.push({ selected: -1, correct: false });
+  showFeedback(false, state.questions[state.currentQ].opts[state.questions[state.currentQ].ans]);
+  document.querySelectorAll('.option-btn').forEach(b => {
+    b.disabled = true;
+    if ([...b.parentElement.children].indexOf(b) === state.questions[state.currentQ].ans) {
+      b.classList.add('reveal');
+    }
+  });
+  document.getElementById('nextBtn').style.display = 'inline-flex';
+}
+
+function selectAnswer(i, btn) {
+  clearTimer();
+  const q = state.questions[state.currentQ];
+  const correct = i === q.ans;
+  state.answers.push({ selected: i, correct });
+
+  // disable all
+  document.querySelectorAll('.option-btn').forEach((b, idx) => {
+    b.disabled = true;
+    if (idx === q.ans) b.classList.add('correct');
+    else if (idx === i && !correct) b.classList.add('wrong');
+  });
+
+  showFeedback(correct, q.opts[q.ans]);
+  document.getElementById('nextBtn').style.display = 'inline-flex';
+}
+
+function showFeedback(correct, correctAns) {
+  const fb = document.getElementById('feedbackBar');
+  fb.className = 'feedback-bar show ' + (correct ? 'correct' : 'wrong');
+  fb.innerHTML = correct
+    ? '✅ Correct! Well done.'
+    : `❌ Incorrect. Correct answer: <strong style="margin-left:6px">${correctAns}</strong>`;
+}
+
+function nextQuestion() {
+  state.currentQ++;
+  if (state.currentQ >= state.numQ) {
+    showResults();
+  } else {
+    renderQuestion();
+  }
+}
+
+function clearTimer() {
+  if (state.timer) { clearInterval(state.timer); state.timer = null; }
+}
+
+// ══════════════════════════════════════════════
+//  RESULTS
+// ══════════════════════════════════════════════
+function showResults() {
+  state.elapsed = Math.round((Date.now() - state.startTime) / 1000);
+  clearTimer();
+
+  const correct = state.answers.filter(a => a.correct).length;
+  const wrong = state.numQ - correct;
+  const pct = Math.round((correct / state.numQ) * 100);
+
+  // grade
+  let grade, gradeClass, msg, sub;
+  if (pct >= 90) { grade='A+'; gradeClass='grade-A'; msg='Outstanding!'; sub='You aced it! Certificate worthy performance.'; }
+  else if (pct >= 80) { grade='A'; gradeClass='grade-A'; msg='Excellent Work!'; sub='Great score! You clearly know your stuff.'; }
+  else if (pct >= 70) { grade='B'; gradeClass='grade-B'; msg='Good Job!'; sub='Solid performance. Keep learning!'; }
+  else if (pct >= 50) { grade='C'; gradeClass='grade-C'; msg='Not Bad!'; sub='A passing score. Room to improve.'; }
+  else { grade='F'; gradeClass='grade-F'; msg='Keep Practicing!'; sub='Review the material and try again.'; }
+
+  // ring color
+  const ring = document.getElementById('scoreRing');
+  const colors = { 'A+':['#3ecf8e','rgba(62,207,142,0.2)'],'A':['#3ecf8e','rgba(62,207,142,0.2)'],'B':['#5b8dee','rgba(91,141,238,0.2)'],'C':['#f5c842','rgba(245,200,66,0.2)'],'F':['#f06292','rgba(240,98,146,0.15)'] };
+  ring.style.borderColor = colors[grade][0];
+  ring.style.background = colors[grade][1];
+  document.getElementById('scorePct').textContent = pct + '%';
+  document.getElementById('scorePct').style.color = colors[grade][0];
+
+  const gb = document.getElementById('gradeBadge');
+  gb.textContent = `Grade: ${grade}`;
+  gb.className = 'grade-badge ' + gradeClass;
+
+  document.getElementById('resultMsg').textContent = msg;
+  document.getElementById('resultSub').textContent = sub;
+  document.getElementById('sCorrect').textContent = correct;
+  document.getElementById('sWrong').textContent = wrong;
+
+  const mins = Math.floor(state.elapsed/60), secs = state.elapsed%60;
+  document.getElementById('sTime').textContent = `${mins}m ${secs}s`;
+
+  // review
+  const rl = document.getElementById('reviewList');
+  rl.innerHTML = '';
+  state.questions.forEach((q, i) => {
+    const a = state.answers[i];
+    const div = document.createElement('div');
+    div.className = 'review-item ' + (a.correct ? 'correct-r' : 'wrong-r');
+    const selectedText = a.selected === -1 ? 'No answer (time up)' : q.opts[a.selected];
+    div.innerHTML = `
+      <div class="review-q">${i+1}. ${q.q}</div>
+      <div class="review-answer">
+        ${a.correct
+          ? `<em class="ok">✅ Your answer: ${selectedText}</em>`
+          : `<em class="bad">❌ Your answer: ${selectedText}</em> &nbsp;→&nbsp; <em class="ok">✅ Correct: ${q.opts[q.ans]}</em>`
+        }
+      </div>`;
+    rl.appendChild(div);
+  });
+
+  showScreen('screen-result');
+  document.getElementById('progressFill').style.width = '100%';
+}
+
+// ══════════════════════════════════════════════
+//  PDF CERTIFICATE
+// ══════════════════════════════════════════════
+function downloadCertificate() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
+  const W = 297, H = 210;
+
+  // Background
+  doc.setFillColor(10,12,20);
+  doc.rect(0,0,W,H,'F');
+
+  // Outer gold border
+  doc.setDrawColor(245,200,66);
+  doc.setLineWidth(3);
+  doc.rect(8,8,W-16,H-16,'S');
+
+  // Inner border
+  doc.setLineWidth(0.8);
+  doc.setDrawColor(200,150,40);
+  doc.rect(12,12,W-24,H-24,'S');
+
+  // Top decorative line
+  doc.setLineWidth(1.2);
+  doc.setDrawColor(245,200,66);
+  doc.line(20,35,W-20,35);
+  doc.line(20,36.5,W-20,36.5);
+
+  // Bottom decorative line
+  doc.line(20,H-35,W-20,H-35);
+  doc.line(20,H-36.5,W-20,H-36.5);
+
+  // Logo / badge text
+  doc.setTextColor(245,200,66);
+  doc.setFontSize(11);
+  doc.setFont('helvetica','bold');
+  doc.text('🏆  QUIZMASTER PRO', W/2, 24, {align:'center'});
+
+  // Certificate title
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(36);
+  doc.setFont('times','bold');
+  doc.text('Certificate of Achievement', W/2, 55, {align:'center'});
+
+  // Subtitle
+  doc.setTextColor(180,190,210);
+  doc.setFontSize(13);
+  doc.setFont('helvetica','normal');
+  doc.text('This is to certify that', W/2, 70, {align:'center'});
+
+  // Name
+  doc.setTextColor(245,200,66);
+  doc.setFontSize(34);
+  doc.setFont('times','bolditalic');
+  doc.text(state.name, W/2, 90, {align:'center'});
+
+  // Name underline
+  const nameW = doc.getTextWidth(state.name);
+  doc.setDrawColor(245,200,66);
+  doc.setLineWidth(0.8);
+  doc.line(W/2 - nameW/2 - 10, 93, W/2 + nameW/2 + 10, 93);
+
+  // Body text
+  const correct = state.answers.filter(a=>a.correct).length;
+  const pct = Math.round((correct/state.numQ)*100);
+
+  doc.setTextColor(200,210,225);
+  doc.setFontSize(13);
+  doc.setFont('helvetica','normal');
+  doc.text('has successfully completed the', W/2, 104, {align:'center'});
+
+  doc.setTextColor(91,141,238);
+  doc.setFontSize(18);
+  doc.setFont('helvetica','bold');
+  doc.text(`${state.topic} Quiz`, W/2, 115, {align:'center'});
+
+  doc.setTextColor(200,210,225);
+  doc.setFontSize(12);
+  doc.setFont('helvetica','normal');
+  doc.text(`with a score of ${correct} out of ${state.numQ} questions (${pct}%)`, W/2, 126, {align:'center'});
+
+  // Grade box
+  let gradeColor;
+  if(pct>=80) gradeColor=[62,207,142];
+  else if(pct>=70) gradeColor=[91,141,238];
+  else if(pct>=50) gradeColor=[245,200,66];
+  else gradeColor=[240,98,146];
+
+  doc.setFillColor(...gradeColor, 30);
+  doc.setDrawColor(...gradeColor);
+  doc.setLineWidth(1.5);
+  doc.roundedRect(W/2-30, 132, 60, 22, 4, 4,'FD');
+  doc.setTextColor(...gradeColor);
+  doc.setFontSize(15);
+  doc.setFont('helvetica','bold');
+
+  let gradeLabel;
+  if(pct>=90) gradeLabel='Grade: A+';
+  else if(pct>=80) gradeLabel='Grade: A';
+  else if(pct>=70) gradeLabel='Grade: B';
+  else if(pct>=50) gradeLabel='Grade: C';
+  else gradeLabel='Grade: F';
+
+  doc.text(gradeLabel, W/2, 146, {align:'center'});
+
+  // Date and time
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+  const mins = Math.floor(state.elapsed/60), secs = state.elapsed%60;
+
+  doc.setTextColor(120,130,150);
+  doc.setFontSize(10);
+  doc.setFont('helvetica','normal');
+  doc.text(`Date Issued: ${dateStr}`, 30, H-22);
+  doc.text(`Time Taken: ${mins}m ${secs}s`, W/2, H-22, {align:'center'});
+  doc.text('QuizMaster Pro – Automated Quiz Engine', W-30, H-22, {align:'right'});
+
+  // Stars decoration
+  doc.setTextColor(245,200,66);
+  doc.setFontSize(14);
+  doc.text('★  ★  ★  ★  ★', W/2, 162, {align:'center'});
+
+  // Save
+  const safeName = state.name.replace(/\s+/g,'_');
+  doc.save(`Certificate_${safeName}_${state.topic.replace(/\s/g,'_')}.pdf`);
+  showToast('📄 Certificate downloaded!');
+}
+
+// ══════════════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════════════
+function retakeQuiz() {
+  clearTimer();
+  beginQuiz();
+}
+
+function goHome() {
+  clearTimer();
+  state.topic = '';
+  document.querySelectorAll('.topic-card').forEach(c => c.classList.remove('selected'));
+  showScreen('screen-welcome');
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+}
+
+// ══════════════════════════════════════════════
+//  UTILS
+// ══════════════════════════════════════════════
+function shuffle(arr) {
+  for (let i=arr.length-1;i>0;i--) {
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// Allow Enter key on name input
+document.getElementById('userName').addEventListener('keydown', e => {
+  if (e.key === 'Enter') beginQuiz();
+});
+
+init();
+</script>
+</body>
+</html>
